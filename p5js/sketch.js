@@ -31,6 +31,7 @@ function setup() {
 function draw() {
   background(red, green, blue);
 
+  var h8 = windowHeight / 8;
   var h4 = windowHeight / 4;
   var h2 = windowHeight / 2;
   var w2 = windowWidth / 2;
@@ -41,6 +42,6 @@ function draw() {
     ellipse(
       w2 + sin(timer + TAU * rotation) * h4, 
       h2 + cos(timer + TAU * rotation) * h4, 
-      80, 80);
+      h8, h8);
   }
 }
