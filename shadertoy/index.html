@@ -1,0 +1,206 @@
+<html>
+  <!-- 
+    @author Your Name Here
+    @address tz...
+    @twitter https://twitter.com/your_tweeter
+    @shadertoy https://www.shadertoy.com/user/your_shadertoy
+  -->
+
+  <head>
+    <link rel="icon" href="./favicon.svg" />
+    <title>shadertoy example</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+    <script id="fxhash-snippet">
+      //---- do not edit the following code (you can indent as you wish)
+      let alphabet =
+        "123456789abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ";
+      var fxhash =
+        "oo" +
+        Array(49)
+          .fill(0)
+          .map((_) => alphabet[(Math.random() * alphabet.length) | 0])
+          .join("");
+      let b58dec = (str) =>
+        str
+          .split("")
+          .reduce(
+            (p, c, i) =>
+              p +
+              alphabet.indexOf(c) *
+                Math.pow(alphabet.length, str.length - i - 1),
+            0
+          );
+      let fxhashTrunc = fxhash.slice(2);
+      let regex = new RegExp(".{" + ((fxhashTrunc.length / 4) | 0) + "}", "g");
+      let hashes = fxhashTrunc.match(regex).map((h) => b58dec(h));
+      let sfc32 = (a, b, c, d) => {
+        return () => {
+          a |= 0;
+          b |= 0;
+          c |= 0;
+          d |= 0;
+          var t = (((a + b) | 0) + d) | 0;
+          d = (d + 1) | 0;
+          a = b ^ (b >>> 9);
+          b = (c + (c << 3)) | 0;
+          c = (c << 21) | (c >>> 11);
+          c = (c + t) | 0;
+          return (t >>> 0) / 4294967296;
+        };
+      };
+      var fxrand = sfc32(...hashes);
+      //---- /do not edit the following code
+    </script>
+  </head>
+
+  <body>
+    <canvas id="canvas" width="100%" height="100%"></canvas>
+    <script type="text/javascript">
+      var seed = fxrand();
+
+      // --- vert --------------------------------
+      // -----------------------------------------
+      var v = `
+        attribute vec2 aVertexPosition;
+        void main() {
+          gl_Position = vec4(aVertexPosition, 0.0, 1.0);
+        }`;
+
+      // --- frag --------------------------------
+      // -----------------------------------------
+      var f = `
+        #ifdef GL_ES
+          precision highp float;
+        #endif
+
+        uniform float iTime;
+        uniform float iSeed;
+        uniform vec2 iResolution;
+        // todo, other inputs...
+        // uniform float     iTimeDelta;            // render time (in seconds)
+        // uniform int       iFrame;                // shader playback frame
+        // uniform float     iChannelTime[4];       // channel playback time (in seconds)
+        // uniform vec3      iChannelResolution[4]; // channel resolution (in pixels)
+        // uniform vec4      iMouse;                // mouse pixel coords. xy: current (if MLB down), zw: click
+        // uniform samplerXX iChannel0..3;          // input channel. XX = 2D/Cube
+        // uniform vec4      iDate;                 // (year, month, day, time in seconds)
+        // uniform float     iSampleRate;           // sound sample rate (i.e., 44100)
+
+        void mainImage( out vec4 fragColor, in vec2 fragCoord )
+        {
+            // Normalized pixel coordinates (from 0 to 1)
+            vec2 uv = fragCoord/iResolution.xy;
+
+            // fxhash demonstration, half will be slow and half will be fast
+            float speedModifier = step(0.5, iSeed) * 10. + 1.0;
+
+            // Time varying pixel color
+            vec3 col = 0.5 + 0.5 * cos(iTime * speedModifier + uv.xyx + vec3(0,2,4));
+
+            // Output to screen
+            fragColor = vec4(col,1.0);
+        }
+
+        void main()
+        {
+          mainImage(gl_FragColor, gl_FragCoord.xy);
+        }
+      `;
+
+      // --- setup -------------------------------
+      // -----------------------------------------
+      window.addEventListener("DOMContentLoaded", (event) => {
+        const canvas = document.getElementById("canvas");
+        const gl = canvas.getContext("webgl");
+
+        // shader creation boilerplate
+        // --------------------------------------------------
+        var vs = gl.createShader(gl.VERTEX_SHADER);
+        gl.shaderSource(vs, v);
+        gl.compileShader(vs);
+
+        var fs = gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(fs, f);
+        gl.compileShader(fs);
+        if ((msg = gl.getShaderInfoLog(fs)).length) {
+          throw msg;
+        }
+
+        program = gl.createProgram();
+        gl.attachShader(program, vs);
+        gl.attachShader(program, fs);
+        gl.linkProgram(program);
+
+        var vertices = new Float32Array([
+          -1, 1, 1, 1, 1, -1, -1, 1, 1, -1, -1, -1,
+        ]);
+
+        vbuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vbuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+        gl.useProgram(program);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, vbuffer);
+        var aVertexPosition = gl.getAttribLocation(program, "aVertexPosition");
+
+        gl.enableVertexAttribArray(aVertexPosition);
+        gl.vertexAttribPointer(aVertexPosition, 2, gl.FLOAT, false, 0, 0);
+
+        // uniforms
+        // --------------------------------------------------
+        // standard
+        var iTime = gl.getUniformLocation(program, "iTime");
+        var iResolution = gl.getUniformLocation(program, "iResolution");
+        var iSeed = gl.getUniformLocation(program, "iSeed");
+        // custom for this piece
+        // e.g. you might input a palette value, iColor
+
+        // assign fxhash features
+        // --------------------------------------------------
+        window.$fxhashFeatures = {
+          // in this demo, we're using iSeed to scale the time value:
+          Speed: seed < 0.5 ? "Slow" : "Fast",
+        };
+        console.table(window.$fxhashFeatures);
+
+        // assign invariant uniforms
+        // --------------------------------------------------
+        gl.uniform1f(iSeed, seed);
+
+        // set up draw and resize functions
+        // --------------------------------------------------
+        resize = () => {
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+          gl.viewport(0, 0, canvas.width, canvas.height);
+
+          // iResolution changes on resize so set it here:
+          gl.uniform2fv(iResolution, [canvas.width, canvas.height]);
+        };
+        resize();
+
+        function render() {
+          if (
+            canvas.width !== window.innerWidth ||
+            canvas.height !== window.innerHeight
+          ) {
+            resize();
+          }
+          
+          // set iTime to be a fraction of performance.now()
+          gl.uniform1f(iTime, 0.001 * performance.now());
+
+          gl.drawArrays(gl.TRIANGLES, 0, 6);
+          requestAnimationFrame(render);
+        }
+        render();
+      });
+    </script>
+  </body>
+</html>
